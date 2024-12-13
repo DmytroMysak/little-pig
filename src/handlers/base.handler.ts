@@ -12,9 +12,4 @@ export class BaseCommand {
   @IsString()
   @IsNotEmpty()
   requestId: string;
-
-  @Expose()
-  @IsString()
-  @IsNotEmpty()
-  chatId: string;
 }

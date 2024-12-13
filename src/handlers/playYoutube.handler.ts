@@ -4,7 +4,7 @@ import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
 import { PlayerService } from '../services/player.service.js';
 import { BaseCommand } from './base.handler.js';
 import ytdl from 'ytdl-core';
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 export class PlayYoutubeCommand extends BaseCommand {
   @Expose()
@@ -18,20 +18,21 @@ export class PlayYoutubeCommand extends BaseCommand {
   volume: number;
 }
 
+@Injectable()
 @CommandHandler(PlayYoutubeCommand)
 export class PlayYoutubeHandler implements ICommandHandler<PlayYoutubeCommand> {
   private readonly logger = new Logger(PlayYoutubeHandler.name);
 
   constructor(private readonly playerService: PlayerService) {}
 
-  async execute(command: PlayYoutubeCommand): Promise<{ message: string } | undefined> {
+  async execute(command: PlayYoutubeCommand): Promise<void> {
     let info: ytdl.videoInfo;
     try {
       // { requestOptions: { headers: { Cookie: config.youtubeCookie } } }
       info = await ytdl.getInfo(command.link);
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error({ error, command });
-      return { message: error.message };
+      return;
     }
 
     // audio only, sorted by quality (highest bitrate)

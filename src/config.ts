@@ -1,26 +1,20 @@
 export interface Config {
   isProduction: boolean;
-  rabbitMq: {
-    url: string;
-    queueName: string;
-    responseQueue: string;
-  };
+  serverUrl: string;
+  apiKey: string;
 }
 
 export const CONFIG = (): Config => {
-  const { RABBITMQ_URL, RABBITMQ_QUEUE_NAME } = process.env;
-  if (!RABBITMQ_URL || !RABBITMQ_QUEUE_NAME) {
-    throw new Error('RabbitMQ configuration is missing');
+  const { BOT_URL, PASSWORD } = process.env;
+  if (!BOT_URL || !PASSWORD) {
+    throw new Error('BOT_URL or PASSWORD are missing');
   }
 
   const isProduction = process.env.NODE_ENV === 'production';
 
   return {
     isProduction,
-    rabbitMq: {
-      url: RABBITMQ_URL,
-      queueName: RABBITMQ_QUEUE_NAME,
-      responseQueue: 'response-queue',
-    },
+    serverUrl: new URL('/sse', BOT_URL).toString(),
+    apiKey: PASSWORD,
   };
 };

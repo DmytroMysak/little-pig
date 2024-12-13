@@ -3,6 +3,7 @@ import { Expose } from 'class-transformer';
 import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
 import { PlayerService } from '../services/player.service.js';
 import { BaseCommand } from './base.handler.js';
+import { Injectable } from '@nestjs/common';
 
 export class PlayCommand extends BaseCommand {
   @Expose()
@@ -16,6 +17,7 @@ export class PlayCommand extends BaseCommand {
   volume: number;
 }
 
+@Injectable()
 @CommandHandler(PlayCommand)
 export class PlayHandler implements ICommandHandler<PlayCommand> {
   constructor(private readonly playerService: PlayerService) {}

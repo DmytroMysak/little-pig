@@ -1,8 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Injectable, Logger } from '@nestjs/common';
 import PQueue from 'p-queue';
 import Speaker from 'speaker';
 import ffmpeg, { type FfmpegCommand } from 'fluent-ffmpeg';
+import { path } from '@ffmpeg-installer/ffmpeg';
+import { Readable } from 'node:stream';
 
 interface AudioData {
   link: string;
@@ -14,14 +15,17 @@ export class PlayerService {
   private readonly logger = new Logger(PlayerService.name);
   private readonly queue: PQueue = new PQueue({ concurrency: 1 });
   private process: FfmpegCommand;
-  private speaker: Speaker = new Speaker();
+
+  constructor() {
+    ffmpeg.setFfmpegPath(path);
+  }
 
   addToQueue(audioData: AudioData): Promise<void> {
     return this.queue.add(() => this.play(audioData));
   }
 
-  async stopSong(): Promise<void> {
-    await (this.process as any)?.ffmpegProc?.stdin?.write('q');
+  stopSong(): void {
+    this.process.kill('SIGINT');
   }
 
   pauseQueue(): void {
@@ -33,31 +37,40 @@ export class PlayerService {
   }
 
   async play({ link, volume }: AudioData): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.speaker = new Speaker();
-
+    const audioStream = (await fetch(link)).body;
+    if (!audioStream) {
+      return;
+    }
+    return new Promise((resolve) => {
+      // transform mp3 to pcm for speaker
       this.process = ffmpeg()
-        .addInput(link)
-        .audioFilters(`volume=${(volume / 100).toString()}`)
+        .input(Readable.fromWeb(audioStream))
+        .inputFormat('mp3')
+        .withAudioFilter(`volume=${(volume / 100).toString()}`)
         .noVideo()
-        .format('s16le')
+        .outputFormat('s16le')
         .audioCodec('pcm_s16le')
-        .on('start', (commandLine: string) => this.logger.debug(`Spawned FFmpeg with command: ${commandLine}`))
-        .on('end', () => this.logger.debug('FFmpeg instance ended'))
-        .on('error', (err: unknown) => this.logger.error(`FFmpeg error: ${(err as Error).message}`))
-        .on('codecData', (codec: any) => {
-          (this.speaker as any).channels = codec.audio_details[2] === 'mono' ? 1 : 2;
-          (this.speaker as any).sampleRate = parseInt(codec.audio_details[1].match(/\d+/)[0], 10);
+        .on('start', (commandLine) => this.logger.debug('FFmpeg spawned', { commandLine }))
+        .on('end', () => {
+          this.logger.debug('FFmpeg instance ended');
+          resolve();
+        })
+        .on('error', (error) => {
+          this.logger.debug('FFmpeg error', error);
+          resolve();
         });
 
-      try {
-        this.process.pipe(this.speaker);
-      } catch {
-        this.speaker.close(false);
-      }
-
-      this.speaker.on('close', () => resolve());
-      this.speaker.on('error', (error) => reject(error));
+      this.process.pipe(
+        new Speaker({
+          channels: 1,
+          bitDepth: 16,
+          sampleRate: 24000,
+        }).on('error', (error) => {
+          this.logger.debug('FFmpeg error', error);
+          resolve();
+        }),
+        { end: true },
+      );
     });
   }
 }
